@@ -11,12 +11,9 @@
 
 'use strict';
 
-var audioRecorder;
-
 addTestSuite("recordingTest", recordingTest);
 
 function recordingTest() {
-  audioRecorder.record();
   doGetUserMedia({audio:true}, function(stream) {
     if (checkTracks(stream)) {
       checkAudioStart(stream);
@@ -40,32 +37,25 @@ function checkAudioStart(stream) {
   var processFunc = function(event) {
     var sampleRate = event.sampleRate;
     var inputBuffer = event.inputBuffer;
-    source.disconnect(scriptNode); 
-    scriptNode.disconnect(audioContext.destination);
-    checkAudioFinish(inputBuffer);
+    var numFrames = 20;
+    if (++frameCount >= numFrames) {
+      // End the test.
+      source.disconnect(scriptNode); 
+      scriptNode.disconnect(audioContext.destination);
+      audioRecorder.stop();
+      audioRecorder.exportWAV(doneEncoding);
+      testSuiteFinished();
+    }   
   };
 
+  var frameCount = 0;
   var source = audioContext.createMediaStreamSource(stream);
+  var audioRecorder = new Recorder(source);
   var scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
   scriptNode.onaudioprocess = processFunc;
   source.connect(scriptNode);
   scriptNode.connect(audioContext.destination);
-  audioRecorder = new Recorder(source);
-}
-
-function checkAudioFinish(buffer) {
-  reportSuccess("Audio num channels=" + buffer.numberOfChannels);
-  reportSuccess("Audio sample rate=" + buffer.sampleRate);
-  var data = buffer.getChannelData(0);
-  var sum = 0;
-  for (var sample = 0; sample < buffer.length; ++sample) {
-    sum += Math.abs(data[sample]);
-  }
-  var rms = Math.sqrt(sum / buffer.length);
-  var db = 20 * Math.log(rms) / Math.log(10);
-  reportSuccess("Audio power=" + db);
-  audioRecorder.exportWAV(doneEncoding);
-  testSuiteFinished();
+  audioRecorder.record();
 }
 
 function doneEncoding(blob) {
